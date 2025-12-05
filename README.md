@@ -15,7 +15,7 @@ meaningful patterns.
 Team Members: 
 1. Rishabh Sharad Pomaje <rishabhp@stanford.edu>
 1. Rutanshu Jhaveri <rutanshu@stanford.edu>
-1. Shruthi Shekhar <scshekhar@stanford.edu>
+1. Shruthi Shekhar <scshekar@stanford.edu>
 
 File Tree: 
 > src: Contains the python code (jupyter notebooks) for each of the experiments.
