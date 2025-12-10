@@ -1,0 +1,282 @@
+\documentclass[conference, 11pt]{IEEEtran}
+% \IEEEoverridecommandlockouts
+% % The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+% %Template version as of 6/27/2024
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{amsthm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[svgnames]{xcolor}
+\usepackage[
+    colorlinks = true,
+    linkcolor  = ForestGreen,
+    citecolor  = ForestGreen,
+    urlcolor   = RoyalBlue,
+    filecolor  = blue!60!black
+]{hyperref}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{lipsum}
+\usepackage{float}
+\usepackage{balance}
+\usepackage{multirow}
+\usepackage{amsthm}
+
+\pagestyle{plain}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Exploring the Prediction of ICU Patient Readmission Using Machine Learning Techniques
+}
+
+\author{\IEEEauthorblockN{Rishabh Sharad Pomaje}
+\IEEEauthorblockA{\textit{Dept. of Electrical Engineering} \\
+\textit{Stanford University}\\
+\href{mailto:rishabhp@stanford.edu}{rishabhp@stanford.edu}}
+\and
+\IEEEauthorblockN{Rutanshu Jhaveri}
+\IEEEauthorblockA{\textit{ICME} \\
+\textit{Stanford University}\\
+\href{mailto:rutanshu@stanford.edu}{rutanshu@stanford.edu}}
+\and
+\IEEEauthorblockN{Shruthi Shekar}
+\IEEEauthorblockA{\textit{Dept. of Biomedical Data Science}\\
+\textit{Stanford University}\\
+\href{mailto:scshekar@stanford.edu}{scshekar@stanford.edu}}}
+
+\maketitle
+
+\begin{abstract}
+ICU readmissions within 30 days pose significant clinical and operational burdens. Using data from MIMIC-III, we evaluate multiple predictive models and imputation techniques to predict all-cause 30-day readmission. Models trained on laboratory values, age, and ICU stay duration show that gradient-boosted trees achieve the strongest performance while capturing clinically meaningful patterns. Source code of the project is available on \href{https://github.com/RishP11/CS229_Final_Project-Predicting-Hospital-Readmission-Risk-using-ML.git}{\texttt{GitHub}}.
+\end{abstract}
+
+\section{Introduction}
+Hospital ICU readmissions, especially those occurring shortly after ICU discharge, represent a major clinical and economic burden. In the United States, unplanned readmissions cost the Centers for Medicare and Medicaid Services (CMS) an estimated \$17-26 billion annually \cite{alvarado2023penalty}, simultaneously straining limited hospital capacity. Patients with conditions such as heart failure, frequent readmissions are associated with elevated mortality risk and increased psychological and social stress. Early identification of high-risk patients enables targeted interventions, discharge planning and timely follow-up. 
+
+We explore and evaluate different machine learning models to \textbf{predict the risk of all-cause 30-day readmission} using data from a patient's first ICU stay. We consider logistic regression, gradient-boosted decision trees, and Neural Network. The input to these models consists of numerous laboratory test measurements in addition to the age of the patient and the ICU length of stay (LoS). The models output the probability of readmission which is then used for classification.   
+
+\section{Literature Review}
+% You should find existing papers, group them into categories based on their approaches, and discuss their strengths and weaknesses, as well as how they are similar to and differ from your work. In your opinion, which approaches were clever/good? What is the state- of-the-art? Do most people perform the task by hand? You should aim to have at least 5 references in the related work. Include previous attempts by others at your problem, previous technical methods, or previous learning algorithms. Google Scholar is very useful for this: https://scholar.google.com/ (you can click “cite” and it generates MLA, APA, BibTeX, etc.)
+Increasing availability of Electronic Health Records (EHRs) has enabled a wide range of data-driven approaches in this field. \textit{Note that previous ML approaches to this problem rely on different datasets or adopt distinct cohort selection criteria, making direct comparisons infeasible.} As a result, we compare the qualitative merits and demerits of each approach. \cite{Tabak2017-hx} derives a Readmission Risk Score (RRS) using logistic regression and features such as ALaRMS\footnote{ALaRMS is an aggregated measure of clinical severity at admission}, discharge history, and length of stay, but its linear structure limits its ability to capture nonlinear readmission patterns. \cite{brzancontribution} similarly uses regularized logistic regression on one year of temporal data only considering morbidly obese patients, restricting its generalizability.
+  
+\cite{jones2019predicting} uses nationally representative Medicare data, focusing on data available at the first home healthcare visit, improving real-world clinical utility. However, despite employing gradient-boosted machines (GBMs), the model achieves only moderate discrimination (c-statistic = 0.66). \cite{kang2016utilizing} adopts an interpretable decision-tree approach for heart-failure patients, but its small sample size (n = 552) limits the reliability and generalizability of its findings.
+
+\cite{wangdl} uses time-series vital signs to train convolutional neural networks while accounting for asymmetric misclassification costs. Similarly, \cite{barbieri2020benchmarking} employs longitudinal medical records to predict ICU readmission. Both DL approaches reduce the need for manual feature engineering but are computationally and data intensive. 
+
+Hospital readmission is an extensively studied subject. A comprehensive review of ML-approaches to the problem can be found in this survey paper \cite{huang2021application}. To the best of our knowledge, very few papers consider data imputation techniques which we trial in this work. 
+
+\section{Dataset and Features}
+% Describe your dataset: how many training/validation/test examples do you have? Is there any preprocessing you did? What about normalization or data augmentation? What is the resolution of your images? How is your time-series data discretized? Include a citation on where you obtained your dataset from. Depending on available space, show some examples from your dataset. You should also talk about the features you used. If you extracted features using Fourier transforms, word2vec, histogram of oriented gradients (HOG), PCA, ICA, etc. make sure to talk about it. Try to include examples of your data in the report (e.g. include an image, show a waveform, etc.).
+
+The MIMIC-III Clinical Database \cite{johnson2016mimic} contains de-identified EHR data recorded at Beth Israel Deaconess Medical Center in Boston, Massachusetts. It is a rich database that includes demographics, laboratory measurements, vital signs, diagnosis codes, clinical notes, additional patient information, etc. We focus on a set of laboratory test parameters (listed in \autoref{tab:features_chosen}) and construct per-patient feature vectors using the mean, minimum, maximum, and standard deviation of each parameter.  We also include patient age at admission and ICU LoS during the first visit. Lab features are typically available within 4-12 hours of admission, thereby supporting early readmission prediction. The target variable is defined as all-cause ICU readmission within 30 days.
+
+\begin{table*}[htbp]
+    \centering
+    \begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.30\textwidth}}
+        \toprule
+        Anion-Gap & Bicarbonate & Calcium \\
+        Chloride & Creatinine & Glucose \\
+        Hematocrit & Hemoglobin & MCHC \\
+        MCV (Mean Corpuscular Volume) & Magnesium & PT (Prothrombin Time) \\
+        Phosphate & Potassium & RDW (Red Cell Distribution Width) \\
+        RBC Count & Sodium & Urea-Nitrogen \\
+        WBC Count & Age (years) & ICU-time (hrs) \\
+        \bottomrule
+    \end{tabular}
+    \vspace{1em}
+    \caption{Static vital parameters and patient attributes used to generate the feature vector for each ICU stay.}
+    \label{tab:features_chosen}
+    \vspace{-2em}
+\end{table*}
+Data extraction from MIMIC-III was a challenging component of the project, as the database comprises multiple interlinked tables that must be queried\footnote{The list of queries we used is documented \href{https://github.com/RishP11/CS229_Final_Project-Predicting-Hospital-Readmission-Risk-using-ML/blob/main/src/Queries\%20for\%20Mimic\%20III.pdf}{here}.} systematically. We begin by constructing a well-defined cohort for model development. Our patient selection criterion are: (i) patients aged 18 years or older\footnote{Considering adult ICU patients ensures a more homogenous population as there are more complications with respect to treatment protocols and other factors involved in pediatric patients.}; (ii) exclusion of patients who died during their ICU stay; and (iii) exclusion of patients who were eventually readmitted to the ICU but only after a hospital discharge, as these cases do not constitute true readmissions.
+
+These criterion facilitate the curation of a coarsely refined initial dataset from MIMIC database. However, depending on the model being used, additional preprocessing steps are necessary and/or beneficial.
+We drop non-informative identifiers, such as the ICU stay ID, to prevent introducing unintended bias into the models.
+
+Clinical records are often plagued with missing data, as not all tests are conducted on each patient. Further, they are also imbalanced data where one outcome is more frequent than the other(s). To understand how such imperfections influence the model performance, we tried and tested the impact of the following data-transformation processes: 
+\begin{enumerate}
+  \item \emph{Imputation}: This involves substituting missing data using certain strategies. We considered a simple median strategy as a starting point that substitutes a missing entry in a feature vector with the median value of that feature across the training set. 
+  \item \emph{Class Balance}: Given that the rate of readmission was \(\sim\)10.74\%, we explored a balancing technique: majority-class downsampling and loss-reweighting. Such a method prevents a model from overfitting to the dominant class.
+\end{enumerate} 
+
+To prevent any data leakage, the dataset was split into training, (optionally validation), and test sets, prior to any processing. For example, the in case of imputation, the median across only the training examples was used to impute all examples. This ensured that the model never saw the test set until final evaluation. In addition, to ensure that the distribution of classes is maintained across all the sets, a \emph{stratified} split was performed. Summary statistics for the final cohort are provided in \autoref{tab:cohort_stats}.
+
+\begin{table*}[htbp]
+    \centering
+    \begin{tabular}{c c c c c}
+     \toprule
+        & Train Set & Validation Set & Test Set & Total\\
+    \midrule
+        No. of Entries &  14939 & 6403 & 9147 & 30489\\
+        No. of Readmissions & 1605 & 688 & 983 & 3276\\
+        (\% Readmissions) & \(\sim\)10.74 & \(\sim\)10.74 & \(\sim\)10.74 & \(\sim\)10.74\\
+    \bottomrule
+    \end{tabular}
+    \vspace{1em}
+    \caption{Statistics of our cohort set}
+    \label{tab:cohort_stats}
+    \vspace{-2em}
+\end{table*}
+ 
+\section{Methods}
+
+% \begin{figure*}[htbp]
+%   \centering
+%   \includegraphics[width=0.75\textwidth]{figures/pipeline.pdf}
+%   \caption{pipeline}
+%   \label{fig:pipeline}
+% \end{figure*}
+Suppose \(x \in \mathbb{R}^{d}\) denotes a patient's feature vector and \(y \in \{0, 1\}\) is used to denote the class (readmission (1) and non-readmission (0)) of that patient.  
+
+\subsection{Logistic Regression (Baseline Model)}
+Logistic regression (LogReg or LR) is a standard linear model widely used in clinical risk prediction (e.g., \cite{Tabak2017-hx} uses LogReg weights to define a \emph{Readmission Risk Score}) and other classification tasks. LogReg models the probability of readmission as
+\begin{align}
+  P(y=1 \mid x) = \sigma(w^\top \tilde{x}),
+\end{align}
+where $\sigma(z) = \frac{1}{1 + e^{-z}}$ is the sigmoid function, ${w} \in \mathbb{R}^{d+1}$ is the weight vector, and $\tilde{x} = (1, x) \in \mathbb{R}^{d+1}$. The model parameter vector \(w\) is obtained by minimizing a loss function, typically negative log-likelihood:
+\begin{align}
+L(\theta) = -\sum_{i=1}^{n} \ell(\theta)  
+\end{align}
+
+where, \(\ell(\theta) = y^{(i)} \log \sigma(w^\top \tilde{x}^{(i)})
+    + (1 - y_i)\log (1 - \sigma(w^\top x^{(i)}))\).
+Despite its simplicity, logistic regression provides a strong interpretability advantage and serves as a useful baseline for evaluating more expressive models. 
+
+\subsection{Gradient Boosted Decision Trees}
+Gradient Boosted Decision Trees (GBDT) capture complex distributions and feature relations that linear models cannot represent. We used eXtreme Gradient Boosting (XGBoost) algorithm \cite{Chen_2016}, an ensemble method based on gradient-boosted decision trees. XGBoost constructs a model that cumulatively uses the prediction of multiple decision trees. The output of an ensemble, \(\hat{y}\), is given as, 
+\begin{align}
+  \hat{y} = \sum_{k=1}^{K} f_k(\mathbf{x}),\quad f_k \in \mathcal{F},
+\end{align}
+where each \(f_k\) is a regression tree and \(\mathcal{F}\) denotes the space of all possible trees. XGBoost minimizes the following regularized objective:
+\begin{align}
+\mathcal{L} = \sum_{i=1}^{n} l\left(y_i, \hat{y}_i\right) 
++ \sum_{k=1}^{K} \left( \gamma T_k + \frac{1}{2} \lambda \| \mathbf{w}_k \|^2 \right),
+\end{align}
+where \(l(\cdot)\) is a differentiable loss function of convex nature, \(T_k\) is the number of leaves in the \(k\)-th tree, \(\mathbf{w}_k\) are the leaf weights, and \(\gamma,\lambda\) are regularization parameters that penalize model complexity. This model is particularly well suited for classification tasks on structured, tabular data, such as the clinical variables used in this project. 
+
+CatBoost \cite{prokhorenkova2019catboostunbiasedboostingcategorical} is another gradient-boosted decision tree algorithm that minimizes a regularized loss function designed to handle categorical features natively. It uses an ordered boosting scheme to reduce overfitting and employs symmetric trees for computational efficiency. 
+
+\subsection{Neural network}  
+TabNet \cite{arik2020tabnetattentiveinterpretabletabular} is a deep learning architecture tailored for tabular data through the use of sequential attention that enables the model to dynamically select which features to consider at each decision step. As a DL model, it reduces dependence on extensive feature engineering, an important advantage given that feature selection can substantially affect the performance of non-DL models.
+% Unlike traditional fully connected networks, TabNet uses sequential attention to choose which features to reason from at each decision step, allowing the model to focus on the most relevant information. It combines feature selection and representation learning in a single framework. The model optimizes a standard classification loss (e.g., binary cross-entropy for readmission prediction) and includes sparse regularization on the feature selection masks to improve interpretability and prevent overfitting. TabNet can capture complex, non-linear interactions among features, making it a competitive alternative to gradient-boosted trees for tabular datasets.
+
+\section{Experiments, Results, and Discussion}
+In this section, we discuss and analyze the experiments conducted as a part of this project.  
+
+\textbf{Performance Metrics}:
+The dataset under consideration is imbalanced, with only about 10.74\% of patients experiencing readmission making accuracy unsuitable performance metric. We instead \textbf{prioritize Area under Receiver-Operating Curve (AUROC)} for model evaluation. AUROC represents the probability that given a positive and a negative example, the prediction model will rank the positive higher than the negative. An ideal classifier will have an AUROC score of 1, while a non-ideal classifier a score of 0. \autoref{fig:best_auroc_curves} illustrates the Receiver Operating Curves for the best model observed from each family of models. In addition, we report weighted (class-frequency weighted) and macro (equal-weighted) precision and recall metrics. Intuitively, precision measures the fraction of correctly classified examples classwise\footnote{In an imbalanced dataset where the number of actual positives is very low, precision is useful as a metric.}. Recall, is the proportion of a class being correctly classified\footnote{Recall on the other hand, is less and less useful as the data becomes more imbalanced.}. \autoref{tab:model_performance} summarizes the performance of all evaluated models.
+
+\begin{table*}[htbp]
+  \centering
+
+  \begin{tabular}{l l c c c c c}
+    \toprule
+    \multirow{2}{*}{Family} & \multirow{2}{*}{Model} 
+        & \multicolumn{2}{c}{Precision} 
+        & \multicolumn{2}{c}{Recall} 
+        & \textbf{AUROC} \\
+    \cmidrule(lr){3-4} \cmidrule(lr){5-6}
+        & & Macro & Weighted & Macro & Weighted & \\
+    \midrule
+    \multirow{3}{*}{Linear Classifier (Baseline)} & LogReg (Base) & 0.54 & 0.78 & 0.50 & 0.86 & \textbf{0.670 \(\pm\) 0.025} \\
+    & LogReg (Balanced) & 0.56 & 0.82 & 0.62 & 0.66 & \textbf{0.668 \(\pm\) 0.025} \\
+    & LogReg (Imputation) & 0.67 & 0.85 & 0.51 & {\color{blue}0.89} & \textbf{0.709 \(\pm\) 0.017} \\
+    \midrule
+    \multirow{3}{*}{GBDT} & XGBoost (Base) & 0.60 & 0.83 & 0.52 & {\color{blue}0.89} & \textbf{0.687 \(\pm\) 0.017} \\
+    & XGBoost (HyperOpt) & 0.63 & 0.85 & 0.60 & 0.87 & \textbf{0.745 \(\pm\) 0.015} \\
+    & XGBoost (Imputed) & 0.64 & 0.85 & 0.59 & 0.88 & \textbf{0.746 \(\pm\) 0.015} \\
+    & CatBoost (Base) & 0.75 & {\color{blue}0.86} & 0.51 & {\color{blue}0.89} & {\color{blue}\textbf{0.726 \(\pm\) 0.016}} \\
+    & CatBoost (HyperOpt) & {\color{blue}0.76} & {\color{blue}0.86} & 0.51 & {\color{blue}0.89} & \textbf{0.737 \(\pm\) 0.016} \\
+    \midrule
+    \multirow{3}{*}{Neural Networks} & TabNet (Base) & 0.55 & 0.83 & 0.51 & {\color{blue}0.89} & \textbf{0.648 \(\pm\) 0.018}\\
+    & TabNet (Pretrained) & 0.56 & 0.85 & {\color{blue}0.64} & 0.67 & \textbf{0.680 \(\pm\) 0.018}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{1em}
+  \caption{Performance metrics of different machine learning models for ICU readmission prediction. All the models, whenever possible, were optimized for maximum AUROC score. The best values are highlighted in blue.}
+  \label{tab:model_performance}
+  \vspace{-2em}
+\end{table*}
+
+\subsection{Logistic Regression Experiments}
+The simplicity of LogReg allowed rapid experimentation with preprocessing techniques. All LogReg experiments used the \texttt{scikit-learn} Python library \cite{scikit-learn}. Since LogReg cannot handle missing values, stricter\footnote{Any patient record with missing feature value had to be discounted.} preprocessing was required, resulting in 9,774 usable examples (\(\sim 13\%\) readmission rate). Despite this limitation, the model remained a useful baseline because the data distribution was nearly preserved.  
+
+Using default scikit-learn settings, the LogReg (Base) achieved an AUROC of 0.670. LogReg (Balanced) employed LogReg with minority oversampling and majority undersampling combined with loss upweighting, yielding an AUROC of 0.668. The downscaling factor \(\kappa = \frac{\mathtt{num\_minority}}{\mathtt{num\_majority}} = \frac{1}{4}\) was set empirically. The performance across \(\kappa \in \{3,4,5\}\) was consistent. LogReg (Imputation) used data transformed through \textbf{median imputation} to address missing data and demonstrated an AUROC score of 0.709.
+
+\textbf{Discussion:} 
+The purpose of the Base experiment was to provide a performance baseline on our data. Data balancing techniques, upsampling minority class examples or downsampling majority class examples from existing records, did not improve the performance. A possible cause for this could be complex data distribution. Fresh data that adds new information is required to capture the complex data distribution. Consequently, we  discontinued balancing synthetic balancing techniques on other models. In contrast, imputing missing values improved the performance. This may be attributed to increased amount of data available since we no longer discard incomplete entries. This incorporates more information about the distributions during training, leading to improved performance and generalization.
+
+\subsection{XGBoost Experiments}
+All XGBoost experiments were conducted using the \texttt{xgboost} Python library \cite{xgboostlibcite}. 
+Using the default hyperparameters, \textbf{XGB (Base)}, achieved an AUROC of 0.687. \textbf{XGB (HyperOpt)} was a model tuned using Optuna library \cite{akiba2019optuna}, selecting parameter ranges guided by prior work and employing the Tree-Structured Parzen Estimator (TPE) algorithm, which has been shown to efficiently explore hyperparameter spaces \cite{bergstra2011algorithms}, an AUROC score of 0.745 was observed. The optimal configuration found on TPE search included a learning rate of 0.00105, a maximum tree depth of 17, and a minimum child weight of 15,\footnote{Please refer to the code output in GitHub for the complete list of optimal hyperparameters.}. Lastly, applying median imputation followed by hyperparameter tuning, \textbf{XGB (Imputed)}, produced performance nearly identical to the tuned XGBoost model with similar hyperparameters.
+
+The \textbf{CatBoost (Base)} model, trained with default
+hyperparameters, achieved an AUROC of 0.726, while the tuned \textbf{CatBoost (HyperOpt)} model, optimized using a TPE-based HyperOpt search, achieved a slightly improved AUROC of 0.737. 
+
+\textbf{Discussion:} The ability of XGB to internally handle missing values and find the optimal splits factoring the missing data significantly improved the performance as even incomplete records could be used. The results also indicate the importance of hyperparameter tuning and incorporating information of imbalanced data (which was done by setting scale\_pos\_weights parameter using class frequencies) can enhance predictive performance. By tuning key parameters like tree depth the model can better adapt to the structure of our clinical dataset. For instance, increasing tree depth allows XGBoost to consider more features and interaction terms at each split, enabling it to capture the nonlinear relationships present. These adjustments allow the model to extract more ``signal'' from noisy, incomplete data.
+
+We found CatBoost competitive while offering significantly shorter training times, making it a strong choice for rapid prototyping and baseline comparisons. Its performance without tuning was comparable to the tuned model emphasizing the capability of CatBoost with default parameters.
+
+\subsection{TabNet}
+We observed sub-par performance with TabNet on our dataset. Using unsupervised pre-training and minor hyperparameter tuning, we obtained AUROCs of 0.648 and 0.680, respectively. Training TabNet was highly time-intensive, which limited our exploration of the model's architecture and optimize its parameters.
+
+\textit{Discussion}: To check for \textbf{overfitting}, we compared training and testing errors and found them to be closely aligned across all models, with test errors only marginally higher. Regularization mechanisms (e.g., \(L_2\) penalties in XGB and LR) effectively mitigated overfitting. TabNet showed the largest difference (but still modest), suggesting that neural network may benefit from additional training data. Limited exploration with respect to parameter tuning could also be one of the reasons. We discuss more solutions in \autoref{section:conc}.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\columnwidth]{figures/best_aurocs.pdf}
+  \caption{A plot comparing the best receiver-operating curves for each model family.}
+  \label{fig:best_auroc_curves}
+  \vspace{-1em}
+\end{figure}
+
+\section{Interpretation of Best Learned Model}
+In this section, we analyze the top 20 feature importances from the best-performing model, XGB (Imputed) (\autoref{fig:feature_imp}). The top 20 features correspond to inflammation, hematologic instability, renal stress, and acid-base or electrolyte imbalance-patterns. These factors are consistently associated with readmission.
+
+RDW values and related hematologic indices rank highest. This is consistent with evidence linking RDW variation to systemic stress and adverse ICU outcomes \cite{https://doi.org/10.1002/clc.22116}. Urea/BUN features reflect dehydration, catabolic stress, or impaired perfusion. These factors concur with predictors of early readmission \cite{pishgar2022prediction}. Chloride and bicarbonate statistics highlight the importance of acid-base and fluid disturbances \cite{sagar2024comprehensive, yeh2020hyperchloremia} which correlate with mortality. Platelet count trends similarly signal ongoing inflammation/coagulopathy \cite{anthon2023thrombocytopenia}. 
+
+Overall, the feature profile aligns with medical literature. Importantly, the model prioritizes residual physiologic trends rather than isolated abnormal values, indicating that it detects sustained patterns of instability rather than noise. These trajectory-level signals reflect patterns clinicians often recognize informally but are not routinely quantified in current risk assessments. RDW, urea/BUN, platelet fluctuations, and electrolyte abnormalities consistently emerge as markers of short-term physiological instability. The model learned patients who appear clinically stable yet retain physiological signs of incomplete recovery. Thus the model captures meaningful biological patterns.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{figures/feature_importances.pdf}
+  \caption{Feature Importances observed in the best performing model-XGBoost with data imputation and hyperparameter tuning.}
+  \label{fig:feature_imp}
+  \vspace{-1em}
+\end{figure}
+
+\section{Conclusion and Future Work}\label{section:conc}
+We evaluated different machine learning models and algorithms: Logistic Regression (Linear Classifiers), GBDT model (XGBoost and CatBoost), and a neural network (TabNet). The GBDT models demonstrated superior performance in comparison to others. Possible reasons for this include ability to handle data inconsistencies and tabular data being suited well to the algorithm. We also observed performance improvement with data imputation depending on the model. 
+
+Advanced imputation strategies, including KNN- or deep learning-based methods, should be explored in the future. Early feature-engineering experiments showed performance gains, suggesting value in augmenting the dataset with additional categorical variables (e.g., diagnostic or procedure codes) and information extracted from clinical notes for models such as FT-Transformer \cite{gorishniy2023revisitingdeeplearningmodels} and TabNet. Such attention-based deep learning architectures warrant further investigation to better leverage both structured and unstructured information.
+
+\section{Acknowledgement}
+
+We are thankful to our project mentor, Hercy Shen, for providing feedback and helpful suggestions. We also thank the entire CS229 faculty, TA and staff for a smooth conduction and support throughout the course.
+\newpage
+\balance
+
+\section{Contributions}
+\begin{itemize}
+    \item \textbf{Rishabh Sharad Pomaje} performed fine-grained data processing after database extraction. Explored, designed, implemented, and verified all Logistic Regression, XGBoost, CatBoost, and TabNet experiments. He analyzed and reasoned the performance of all models. He contributed to the writing, formatting, and presentation of all parts of the final report.
+    \item \textbf{Rutanshu Jhaveri} did a detailed study of the database, and spent substantial efforts in designing and using Queries to get the initial coarse-data from MIMIC-III database. Notably, he also tried to get additional features such as disease codes and notes, but was constrained by computational limitations. He contributed to the initial implementation of XGBoost. He contributed to the literature review and the feature importance analysis section in the write-up.  
+    \item \textbf{Shruthi Shekar} introduced us to the problem. Helped in feature selection and qualitative (high-level) cohort data selection criterion, and qualitative field-specific analysis of the results and the corresponding section(s) in the write-up.
+\end{itemize}
+Everybody contributed to literature review. 
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
